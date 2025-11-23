@@ -59,39 +59,52 @@ export function LegalChatbot() {
     scrollToBottom()
   }, [messages])
 
-  const handleSendMessage = async (text?: string) => {
-    const messageText = text || input.trim()
-    if (!messageText) return
+ const handleSendMessage = async (text?: string) => {
+  const messageText = text || input.trim()
+  if (!messageText) return
 
-    // Add user message
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      role: "user",
-      content: messageText,
+  const userMessage: Message = {
+    id: Date.now().toString(),
+    role: "user",
+    content: messageText,
+    timestamp: new Date(),
+  }
+
+  setMessages((prev) => [...prev, userMessage])
+  setInput("")
+  setIsLoading(true)
+
+  try {
+    const res = await fetch("/api/ask", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        messages: [
+          // send the conversation so far, but only role + content
+          ...messages.map((m) => ({ role: m.role, content: m.content })),
+          { role: "user", content: messageText },
+        ],
+      }),
+    })
+
+    const data = await res.json()
+
+    const assistantMessage: Message = {
+      id: (Date.now() + 1).toString(),
+      role: "assistant",
+      content: data.message || "Sorry, I could not generate a response.",
+      // you can later plug in `data.sources`
       timestamp: new Date(),
     }
 
-    setMessages((prev) => [...prev, userMessage])
-    setInput("")
-    setIsLoading(true)
-
-    // Simulate AI response with sources
-    setTimeout(() => {
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: "assistant",
-        content: generateAIResponse(messageText),
-        sources: ["IPC Section 41", "CrPC Section 170", "Landmark Case: Kesavananda Bharati v. State of Kerala"],
-        timestamp: new Date(),
-      }
-      setMessages((prev) => [...prev, assistantMessage])
-      setIsLoading(false)
-    }, 1200)
-
-    if (inputRef.current) {
-      inputRef.current.focus()
-    }
+    setMessages((prev) => [...prev, assistantMessage])
+  } catch (err) {
+    console.error(err)
+  } finally {
+    setIsLoading(false)
+    inputRef.current?.focus()
   }
+}
 
   const generateAIResponse = (question: string): string => {
     const responses: { [key: string]: string } = {
